@@ -20,14 +20,11 @@
    License along with this library.
 
 */
-
-#include <math.h>
-
 #define SENSOR_RESOLUTION 255
 #define WINDOW_RESOLUTION 128
 #define DEBOUNCE_TIME     150
 #define NUM_OF_LEDS       9
-#define CONFIRM_DELAY     50
+#define CONFIRM_DURATION  250
 #define BLINK_DELAY       200
 #define TIMEOUT           1000
 
@@ -60,53 +57,70 @@ short ledPins[9] = {
 };
 
 short pressure = 0;
-volatile byte defaultLevel = 4;
-volatile unsigned long setting_time = 0;
+volatile byte level = 4;
+volatile unsigned long lastInterruptTime = 0;
 
-typedef enum ProgramState {RUNNING, SET_LEVEL} ProgramState_t;
-ProgramState_t stateProgram = RUNNING;
+typedef enum ProgramState {MAIN_STATE, CHANGE_LEVEL_STATE} ProgramState_t;
+ProgramState_t stateProgram = MAIN_STATE;
 
-void increaseLevel() { 
-  if (stateProgram != SET_LEVEL)
-    changeStateProgram(SET_LEVEL);
-  static unsigned long last_interrupt_time = 0;
-  unsigned long interrupt_time = millis();
-  setting_time = interrupt_time;
-  if (interrupt_time - last_interrupt_time > DEBOUNCE_TIME) {
-    if (defaultLevel < NUM_OF_LEDS-1) {
-      digitalWrite(ledPins[defaultLevel], LOW);
-      defaultLevel += 1;
+
+void increaseLevel() {
+  static unsigned long lastTime = 0;
+  unsigned long now = millis();
+  lastInterruptTime = now;
+
+  if (now - lastTime > DEBOUNCE_TIME) {
+   
+    if (stateProgram != CHANGE_LEVEL_STATE) {
+      changeStateProgram(CHANGE_LEVEL_STATE);
+      return;
+    }
+    
+    if (level < NUM_OF_LEDS-1) {
+      digitalWrite(ledPins[level], LOW);
+      level += 1;
     }
 
-    last_interrupt_time = interrupt_time;
+    lastTime = now;
   }
 }
+
 
 void decreaseLevel() {
-  if (stateProgram != SET_LEVEL)
-    changeStateProgram(SET_LEVEL);
-  static unsigned long last_interrupt_time = 0;
-  unsigned long interrupt_time = millis();
-  setting_time = interrupt_time;
-  if (interrupt_time - last_interrupt_time > DEBOUNCE_TIME) { 
-    if (defaultLevel > 0) {
-      digitalWrite(ledPins[defaultLevel], LOW);
-      defaultLevel -= 1;
+  static unsigned long lastTime = 0;
+  unsigned long now = millis();
+  lastInterruptTime = now;
+
+  if (now - lastTime > DEBOUNCE_TIME) {
+
+    if (stateProgram != CHANGE_LEVEL_STATE) {
+      changeStateProgram(CHANGE_LEVEL_STATE);
+      return;
+    }
+  
+    if (level > 0) {
+      digitalWrite(ledPins[level], LOW);
+      level -= 1;
     }
       
-    last_interrupt_time = interrupt_time;
+    lastTime = now;
   }
 }
 
+
 void confirmAnimation() {
-  byte middle_led = NUM_OF_LEDS/2;
-  for (byte i = 0; i <= middle_led; i++) {
-    digitalWrite(ledPins[middle_led - i], HIGH);
-    digitalWrite(ledPins[middle_led + i], HIGH);
-    delay(CONFIRM_DELAY);
+  byte difference = NUM_OF_LEDS - level;
+  byte steps = max(difference, NUM_OF_LEDS + 1 - difference);
+  for (byte i = 0; i < steps; i++) {
+    if (level - i >= 0)
+      digitalWrite(ledPins[level - i], HIGH); 
+    if (level + i < NUM_OF_LEDS) 
+      digitalWrite(ledPins[level + i], HIGH);
+    delay(CONFIRM_DURATION/(steps-1));
   }
   resetLeds();
 }
+
 
 void resetLeds() {
   for (byte i = 0; i < NUM_OF_LEDS; i++){
@@ -115,10 +129,32 @@ void resetLeds() {
   }
 }
 
+
 void changeStateProgram(ProgramState_t newState) {
   stateProgram = newState;
   resetLeds();
 }
+
+
+void mainState() {
+  pressure = analogRead(SENSOR_PIN);    
+  pressure = map(pressure, 0, 1023, 0, SENSOR_RESOLUTION);
+  //Serial.println(pressure);  
+}
+
+
+void changeLevelState() {
+  digitalWrite(ledPins[level], HIGH);
+  delay(BLINK_DELAY);
+  digitalWrite(ledPins[level], LOW);
+  delay(BLINK_DELAY);
+
+  if (millis() - lastInterruptTime > TIMEOUT){
+    confirmAnimation();
+    changeStateProgram(MAIN_STATE);
+  }
+}
+
 
 void setup() {
   Serial.begin(9600);
@@ -131,31 +167,14 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(BUTTON_DOWN_PIN), decreaseLevel, RISING);
 }
 
-void runningLoop() {
-  pressure = analogRead(SENSOR_PIN);    
-  pressure = map(pressure, 0, 1023, 0, SENSOR_RESOLUTION);
-  Serial.println(pressure);  
-}
-
-void setLevelLoop() {
-  digitalWrite(ledPins[defaultLevel], HIGH);
-  delay(BLINK_DELAY);
-  digitalWrite(ledPins[defaultLevel], LOW);
-  delay(BLINK_DELAY);
-
-  if (millis() - setting_time > TIMEOUT){
-    confirmAnimation();
-    changeStateProgram(RUNNING);
-  }
-}
 
 void loop() {
   switch (stateProgram) {
-    case RUNNING:
-      runningLoop();
+    case MAIN_STATE:
+      mainState();
       break;
-    case SET_LEVEL:
-      setLevelLoop();
+    case CHANGE_LEVEL_STATE:
+      changeLevelState();
     default:
       break;
   }
