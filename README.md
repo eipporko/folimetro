@@ -37,3 +37,6 @@ This device consist of 11 leds who marks the pressure and 2 push buttons to disp
 
 ## Arduino Schematic
 ![Connection Scheme](figures/sketch.png)
+
+## Reference
+1.  Cassandre Balosso-Bardin, Camille Vauthrin, Patricio de la Cuadra, Ilya Franciosi, Khalil Ben Mansour, Lise Ochej. EuroRegio2016 (2016, June 13-15). *\<\<The musical arm of the bagpipe player: a cultural and mechanical approach>>*  [[Link]]( http://www.sea-acustica.es/fileadmin/Oporto16/73.pdf)
