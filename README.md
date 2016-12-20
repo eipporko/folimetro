@@ -13,7 +13,7 @@ The idea behind this project was to give support to the students and teachers of
 This device consist of 11 leds who marks the pressure and 2 push buttons to displace the pressure value of the central led.
 
 ```
-                                            PRESSURE VALUE
+                                          PRESSURE VALUE (kPA)
 0.0  0.5  1.0  1.5  2.0  2.5  3.0  3.5  4.0  4.5  5.0  5.5  6.0  6.5  7.0  7.5  8.0  8.5  9.0  9.5  10
                           |    |    |    |    |    |    |    |    |    |    |  
                          -5   -4   -3   -2   -1    0    1    2    3    4    5
