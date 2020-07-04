@@ -20,45 +20,50 @@
    License along with this library.
 
 */
-#define DEBOUNCE_TIME     150
-#define NUM_OF_LEDS       11
-#define CONFIRM_DURATION  250
-#define BLINK_DELAY       200
-#define TIMEOUT           1000
+//For Arduino Pro Micro
+#include <SoftwareSerial.h>
+
+#define DEBOUNCE_TIME          150
+#define NUM_OF_LEDS            9
+#define CONFIRM_DURATION       300
+#define BLINK_DELAY            200
+#define TIMEOUT                1000
 
 //Pins
-#define BUTTON_DOWN_PIN   0 
-#define BUTTON_UP_PIN     1 
+#define BLUETOOTH_ENABLE_PIN   14
+#define BLUETOOTH_TX_PIN       10
+#define BLUETOOTH_RX_PIN       16
+#define BLUETOOTH_S_WINDOW     25
 
-#define LED_MINUS5_PIN    2
-#define LED_MINUS4_PIN    3
-#define LED_MINUS3_PIN    4
-#define LED_MINUS2_PIN    5
-#define LED_MINUS1_PIN    6
-#define LED_ZERO_PIN      7
-#define LED_PLUS1_PIN     8
-#define LED_PLUS2_PIN     9
-#define LED_PLUS3_PIN     10
-#define LED_PLUS4_PIN     16
-#define LED_PLUS5_PIN     14
+#define BUTTON_DOWN_PIN        0 
+#define BUTTON_UP_PIN          1
 
-#define SENSOR_PIN        18
+#define PIN_A                  3
+#define PIN_B                  4
+#define PIN_C                  5
+#define PIN_D                  6
 
-short ledPins[NUM_OF_LEDS] = {
-  LED_MINUS5_PIN,
-  LED_MINUS4_PIN,
-  LED_MINUS3_PIN,
-  LED_MINUS2_PIN,
-  LED_MINUS1_PIN,
-  LED_ZERO_PIN,
-  LED_PLUS1_PIN,
-  LED_PLUS2_PIN,
-  LED_PLUS3_PIN,
-  LED_PLUS4_PIN,
-  LED_PLUS5_PIN
+#define SENSOR_PIN             A0
+
+SoftwareSerial btSerial(BLUETOOTH_TX_PIN, BLUETOOTH_RX_PIN);
+
+const int controlPin[4] = {PIN_A, PIN_B, PIN_C, PIN_D}; // 4 pins used  for binary output antes (3,4,5,6)
+const int muxTable[NUM_OF_LEDS+1][4] = {
+  // s0, s1, s2, s3     channel
+  {0,  0,  0,  0}, // 0
+  {1,  0,  0,  0}, // 1
+  {0,  1,  0,  0}, // 2
+  {1,  1,  0,  0}, // 3
+  {0,  0,  1,  0}, // 4
+  {1,  0,  1,  0}, // 5
+  {0,  1,  1,  0}, // 6
+  {1,  1,  1,  0}, // 7
+  {0,  0,  0,  1}, // 8
+  {1,  0,  0,  1}, // 9
 };
 
-volatile byte level = 5;
+volatile bool decreaseButtonPressed = false;
+volatile byte level = 4;
 volatile unsigned long lastInterruptTime = 0;
 
 typedef enum ProgramState {MAIN_STATE, CHANGE_LEVEL_STATE} ProgramState_t;
@@ -78,7 +83,6 @@ void increaseLevel() {
     }
     
     if (level < NUM_OF_LEDS-1) {
-      digitalWrite(ledPins[level], LOW);
       level += 1;
     }
 
@@ -88,8 +92,11 @@ void increaseLevel() {
 
 
 void decreaseLevel() {
+
+  if (!decreaseButtonPressed) {
   static unsigned long lastTime = 0;
   unsigned long now = millis();
+
   lastInterruptTime = now;
 
   if (now - lastTime > DEBOUNCE_TIME) {
@@ -100,49 +107,96 @@ void decreaseLevel() {
     }
   
     if (level > 0) {
-      digitalWrite(ledPins[level], LOW);
-      level -= 1;
+     level -= 1;
     }
-      
+     
     lastTime = now;
+   }
   }
 }
 
 
-void confirmAnimation() {
-  byte difference = NUM_OF_LEDS - level;
-  byte steps = max(difference, NUM_OF_LEDS + 1 - difference);
-  for (byte i = 0; i < steps; i++) {
-    if (level - i >= 0)
-      digitalWrite(ledPins[level - i], HIGH); 
-    if (level + i < NUM_OF_LEDS) 
-      digitalWrite(ledPins[level + i], HIGH);
-    delay(CONFIRM_DURATION/(steps-1));
-  }
-  resetLeds();
-}
-
-
-void resetLeds() {
-  for (byte i = 0; i < NUM_OF_LEDS; i++){
-    digitalWrite(ledPins[i], LOW);
+void blinkAllLedsAnimation() {
+  for (int i = 0; i < 2; i++) {
+    unsigned long timeToReach = millis() + 150;
+    while (millis() < timeToReach) {
+      for (int j = 0; j < NUM_OF_LEDS; j++) {
+       turnOnLed(j);
+      }
+    }
+    turnOffLeds();
+    delay (150);
   }
 }
 
 
-void turnOnLed(short ledIndex) {
-  static byte lastLedIndex = 0;
-  ledIndex = max (ledIndex, 0);
-  ledIndex = min (ledIndex, NUM_OF_LEDS-1); 
-  digitalWrite(ledPins[lastLedIndex], LOW);
-  digitalWrite(ledPins[ledIndex], HIGH);
-  lastLedIndex = ledIndex;
+void enableBluetoothAnimation() {
+  byte middleLed = 4;
+  byte animation_steps = 5;
+  byte num_of_leds = 0;
+  for (byte i = 0; i < animation_steps; i++) {
+    unsigned long timeToReach = millis() + CONFIRM_DURATION/(animation_steps-1);
+    num_of_leds++;
+    while (millis() < timeToReach) {
+      for (int j = 0; j < num_of_leds; j++) {
+        turnOnLed(middleLed + j);
+        delay(2);
+        turnOnLed(middleLed - j);
+        delay(2);
+       }
+    }
+  }
+  blinkAllLedsAnimation();
 }
 
+
+void disableBluetoothAnimation() {  
+  byte middleLed = 4;
+  byte animation_steps = 5;
+  byte num_of_leds = 6;
+  blinkAllLedsAnimation();
+  for (byte i = 0; i < animation_steps; i++) {
+    unsigned long timeToReach = millis() + CONFIRM_DURATION/(animation_steps-1);
+    num_of_leds--;
+    while (millis() < timeToReach) {
+      for (int j = 0; j < num_of_leds; j++) {
+        turnOnLed(middleLed + j);
+        delay(2);
+        turnOnLed(middleLed - j);
+        delay(2);
+       }
+    }
+  }
+}
+
+
+void turnOnLed(int numOfLed)
+{
+  if (numOfLed < 0) {
+    turnOnLed(0);
+  }
+  else if (numOfLed >= NUM_OF_LEDS) {
+    turnOnLed(NUM_OF_LEDS - 1);
+  }
+  else {
+    digitalWrite(controlPin[0], muxTable[numOfLed][0]);
+    digitalWrite(controlPin[1], muxTable[numOfLed][1]);
+    digitalWrite(controlPin[2], muxTable[numOfLed][2]);
+    digitalWrite(controlPin[3], muxTable[numOfLed][3]);
+  }
+}
+
+
+void turnOffLeds() {
+  digitalWrite(controlPin[0], 0);
+  digitalWrite(controlPin[1], 0);
+  digitalWrite(controlPin[2], 1);
+  digitalWrite(controlPin[3], 1);
+}
 
 void changeStateProgram(ProgramState_t newState) {
   stateProgram = newState;
-  resetLeds();
+  turnOffLeds();
 }
 
 
@@ -150,42 +204,84 @@ void mainState() {
   short pressure = analogRead(SENSOR_PIN); 
   byte ledIndex = map(pressure, 0, 1023, 0, (NUM_OF_LEDS-1)*2);
   turnOnLed(ledIndex - level);
-   
+  
+  btSerial.print('#');
+  btSerial.println(pressure, 0);
+  Serial.println(pressure);
+  
   if (stateProgram != MAIN_STATE)
-    resetLeds();
+    turnOffLeds();
 }
 
 
 void changeLevelState() {
-  digitalWrite(ledPins[level], HIGH);
+  turnOnLed(level);
   delay(BLINK_DELAY);
-  digitalWrite(ledPins[level], LOW);
+  turnOffLeds();
   delay(BLINK_DELAY);
 
   if (millis() - lastInterruptTime > TIMEOUT){
-    confirmAnimation();
+    //confirmAnimation();
     changeStateProgram(MAIN_STATE);
   }
 
   if (stateProgram != CHANGE_LEVEL_STATE)
-    resetLeds();
+    turnOffLeds();
 }
 
 
 void setup() {
-  for (byte i = 0; i < NUM_OF_LEDS; i++){
-    pinMode(ledPins[i], OUTPUT);
-    digitalWrite(ledPins[i], LOW);
-  }
-    
+  pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
+  pinMode (BUTTON_UP_PIN, INPUT_PULLUP);
+  pinMode (BLUETOOTH_ENABLE_PIN, OUTPUT);
   pinMode(BUTTON_UP_PIN, INPUT);
   pinMode(BUTTON_DOWN_PIN, INPUT);
+
+  digitalWrite(BLUETOOTH_ENABLE_PIN, LOW);
+  
+  btSerial.begin(9600);
+  Serial.begin(9600);
+  
   attachInterrupt(digitalPinToInterrupt(BUTTON_UP_PIN), increaseLevel, RISING);
   attachInterrupt(digitalPinToInterrupt(BUTTON_DOWN_PIN), decreaseLevel, RISING);
+
+  for (int i = 0; i < 4; i++)
+  {
+    pinMode(controlPin[i], OUTPUT);//  establece pin como salida
+  }
+}
+
+
+void toggleBluetooth() {
+  bool blEnabled = digitalRead(BLUETOOTH_ENABLE_PIN);
+  if (blEnabled) {
+    digitalWrite(BLUETOOTH_ENABLE_PIN, LOW);
+    disableBluetoothAnimation();
+  }
+  else {
+    digitalWrite(BLUETOOTH_ENABLE_PIN, HIGH);
+    enableBluetoothAnimation();
+  }
 }
 
 
 void loop() {
+  unsigned long timePressed = 0;
+
+  //Check if the Decrease Button is Pressed in a long way in
+  //order to enable/disable bluetooth dongle
+  if (digitalRead(BUTTON_DOWN_PIN) == LOW) {
+    unsigned long now = millis();
+    while (digitalRead(BUTTON_DOWN_PIN) == LOW) {
+      if (millis() - now > 500) {
+        decreaseButtonPressed = true;
+        toggleBluetooth();
+        break;
+      }
+    }
+    decreaseButtonPressed = false;
+  }
+  
   switch (stateProgram) {
     case MAIN_STATE:
       mainState();
