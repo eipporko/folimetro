@@ -28,6 +28,7 @@
 #define CONFIRM_DURATION       300
 #define BLINK_DELAY            200
 #define TIMEOUT                1000
+#define SAMPLE_WINDOW          25
 
 //Pins
 #define BLUETOOTH_ENABLE_PIN   14
@@ -206,8 +207,8 @@ void mainState() {
   turnOnLed(ledIndex - level);
   
   btSerial.print('#');
-  btSerial.println(pressure, 0);
-  Serial.println(pressure);
+  btSerial.println(pressure);
+  delay(SAMPLE_WINDOW);
   
   if (stateProgram != MAIN_STATE)
     turnOffLeds();
@@ -221,7 +222,6 @@ void changeLevelState() {
   delay(BLINK_DELAY);
 
   if (millis() - lastInterruptTime > TIMEOUT){
-    //confirmAnimation();
     changeStateProgram(MAIN_STATE);
   }
 
