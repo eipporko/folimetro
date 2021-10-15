@@ -205,8 +205,7 @@ void mainState() {
   byte ledIndex = map(pressure, 0, 1023, 0, (NUM_OF_LEDS-1)*2);
   turnOnLed(ledIndex - level);
   
-  btSerial.print('#');
-  btSerial.println(pressure);
+  btSerial.println(pressure +'\n');
   delay(BLUETOOTH_S_WINDOW);
   
   if (stateProgram != MAIN_STATE)
