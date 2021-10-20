@@ -1,3 +1,5 @@
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/yellow_img.png)](https://www.buymeacoffee.com/eipporko)
+
 # Folimetro
 
 Folimetro is able to measure the air pressure into a galician bagpipe, connecting it instead of the ronqueta drone.
